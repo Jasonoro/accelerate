@@ -210,6 +210,7 @@ manifest config (OpenAcc pacc) =
     FoldSeg i f z a s       -> FoldSeg  i f z (delayed config a) (delayed config s)
     Scan  d f z a           -> Scan     d f z (delayed config a)
     Scan' d f z a           -> Scan'    d f z (delayed config a)
+    SegScan i d f z a s     -> SegScan  i d f z (delayed config a) (delayed config s)
     Permute f d p a         -> Permute  f (manifest config d) p (delayed config a)
     Stencil s t f x a       -> Stencil  s t f x (delayed config a)
     Stencil2 s1 s2 t f x a y b
@@ -420,6 +421,7 @@ embedPreOpenAcc config matchAcc embedAcc elimAcc pacc
     FoldSeg i f z a s           -> embed2 aR (into2M (FoldSeg i)        (cvtF f) (cvtE <$> z)) a s
     Scan  d f z a               -> embed  aR (into2M (Scan  d)          (cvtF f) (cvtE <$> z)) a
     Scan' d f z a               -> embed  aR (into2  (Scan' d)          (cvtF f) (cvtE z)) a
+    SegScan i d f z a s         -> embed2 aR (into2M (SegScan i d)      (cvtF f) (cvtE <$> z)) a s
     Permute f d p a             -> embed2 aR (into2  permute            (cvtF f) (cvtF p)) d a
     Stencil s t f x a           -> embed  aR (into2  (stencil1 s t)     (cvtF f) (cvtB x)) a
     Stencil2 s1 s2 t f x a y b  -> embed2 aR (into3  (stencil2 s1 s2 t) (cvtF f) (cvtB x) (cvtB y)) a b
@@ -1564,6 +1566,7 @@ aletD' embedAcc elimAcc (LeftHandSideSingle ArrayR{}) (Embed env1 cc1) (Embed en
         FoldSeg i f z a s       -> FoldSeg i (cvtF f) (cvtE <$> z) (cvtA a) (cvtA s)
         Scan  d f z a           -> Scan d (cvtF f) (cvtE <$> z) (cvtA a)
         Scan' d f z a           -> Scan' d (cvtF f) (cvtE z) (cvtA a)
+        SegScan i d f z a s     -> SegScan i d (cvtF f) (cvtE <$> z) (cvtA a) (cvtA s)
         Permute f d p a         -> Permute (cvtF f) (cvtA d) (cvtF p) (cvtA a)
         Stencil s t f x a       -> Stencil s t (cvtF f) (cvtB x) (cvtA a)
         Stencil2 s1 s2 t f x a y b

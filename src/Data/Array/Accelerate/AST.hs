@@ -402,6 +402,15 @@ data PreOpenAcc (acc :: Type -> Type -> Type) aenv a where
               -> acc            aenv (Array (sh, Int) e)
               -> PreOpenAcc acc aenv (Array (sh, Int) e, Array sh e)
 
+
+  SegScan     :: IntegralType i
+              -> Direction
+              -> Fun            aenv (e -> e -> e)              -- combination function
+              -> Maybe     (Exp aenv e)                         -- initial value
+              -> acc            aenv (Array (sh, Int) e)        -- array to scan
+              -> acc            aenv (Segments i)               -- segment descriptor
+              -> PreOpenAcc acc aenv (Array (sh, Int) e)
+
   -- Generalised forward permutation is characterised by a permutation function
   -- that determines for each element of the source array where it should go in
   -- the output. The permutation can be between arrays of varying shape and
@@ -797,6 +806,7 @@ instance HasArraysR acc => HasArraysR (PreOpenAcc acc) where
   arraysR (Scan _ _ _ a)              = arraysR a
   arraysR (Scan' _ _ _ a)             = let aR@(ArrayR (ShapeRsnoc sh) tR) = arrayR a
                                          in TupRsingle aR `TupRpair` TupRsingle (ArrayR sh tR)
+  arraysR (SegScan _ _ _ _ a _)       = arraysR a
   arraysR (Permute _ a _ _)           = arraysR a
   arraysR (Backpermute sh _ _ a)      = let ArrayR _ tR = arrayR a
                                          in arraysRarray sh tR
@@ -1013,6 +1023,7 @@ rnfPreOpenAcc rnfA pacc =
     FoldSeg i f z a s         -> rnfIntegralType i `seq` rnfF f `seq` rnfMaybe rnfE z `seq` rnfA a `seq` rnfA s
     Scan d f z a              -> d `seq` rnfF f `seq` rnfMaybe rnfE z `seq` rnfA a
     Scan' d f z a             -> d `seq` rnfF f `seq` rnfE z `seq` rnfA a
+    SegScan i d f z a s       -> rnfIntegralType i `seq` d `seq` rnfF f `seq` rnfMaybe rnfE z `seq` rnfA a `seq` rnfA s
     Permute f d p a           -> rnfF f `seq` rnfA d `seq` rnfF p `seq` rnfA a
     Backpermute shr sh f a    -> rnfShapeR shr `seq` rnfE sh `seq` rnfF f `seq` rnfA a
     Stencil sr tp f b a       ->
@@ -1221,6 +1232,7 @@ liftPreOpenAcc liftA pacc =
     FoldSeg i f z a s         -> [|| FoldSeg $$(liftIntegralType i) $$(liftF f) $$(liftMaybe liftE z) $$(liftA a) $$(liftA s) ||]
     Scan d f z a              -> [|| Scan  $$(liftDirection d) $$(liftF f) $$(liftMaybe liftE z) $$(liftA a) ||]
     Scan' d f z a             -> [|| Scan' $$(liftDirection d) $$(liftF f) $$(liftE z) $$(liftA a) ||]
+    SegScan i d f z a s       -> [|| SegScan $$(liftIntegralType i) $$(liftDirection d) $$(liftF f) $$(liftMaybe liftE z) $$(liftA a) $$(liftA s) ||]
     Permute f d p a           -> [|| Permute $$(liftF f) $$(liftA d) $$(liftF p) $$(liftA a) ||]
     Backpermute shr sh p a    -> [|| Backpermute $$(liftShapeR shr) $$(liftE sh) $$(liftF p) $$(liftA a) ||]
     Stencil sr tp f b a       ->
@@ -1424,6 +1436,7 @@ formatPreAccOp = later $ \case
   FoldSeg _ _ z _ _ -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
   Scan d _ z _      -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
   Scan' d _ _ _     -> bformat ("Scan" % formatDirection % "\'") d
+  SegScan _ d _ z _ _ -> bformat ("SegScan" % formatDirection % maybed "1" (fconst mempty)) d z
   Permute{}         -> "Permute"
   Backpermute{}     -> "Backpermute"
   Stencil{}         -> "Stencil"

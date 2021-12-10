@@ -431,6 +431,15 @@ data PreSmartAcc acc exp as where
                 -> acc (Array (sh, Int) e)
                 -> PreSmartAcc acc exp (Array (sh, Int) e, Array sh e)
 
+  SegScan       :: IntegralType i
+                -> Direction
+                -> TypeR e
+                -> (SmartExp e -> SmartExp e -> exp e)
+                -> Maybe (exp e)
+                -> acc (Array (sh, Int) e)
+                -> acc (Segments i)
+                -> PreSmartAcc acc exp (Array (sh, Int) e)
+
   Permute       :: ArrayR (Array sh e)
                 -> (SmartExp e -> SmartExp e -> exp e)
                 -> acc (Array sh' e)
@@ -826,6 +835,7 @@ instance HasArraysR acc => HasArraysR (PreSmartAcc acc exp) where
     Scan _ _ _ _ a            -> arraysR a
     Scan' _ _ _ _ a           -> let repr@(ArrayR (ShapeRsnoc shr) tp) = arrayR a
                                  in  TupRsingle repr `TupRpair` TupRsingle (ArrayR shr tp)
+    SegScan _ _ _ _ _ a _     -> arraysR a
     Permute _ _ a _ _         -> arraysR a
     Backpermute shr _ _ a     -> let ArrayR _ tp = arrayR a
                                  in  TupRsingle (ArrayR shr tp)
@@ -1334,6 +1344,7 @@ formatPreAccOp = later $ \case
   FoldSeg _ _ _ z _ _ -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
   Scan d _ _ z _      -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
   Scan' d _ _ _ _     -> bformat ("Scan" % formatDirection % "\'") d
+  SegScan _ d _ _ z _ _ -> bformat ("SegScan" % formatDirection % maybed "1" (fconst mempty)) d z
   Permute{}           -> "Permute"
   Backpermute{}       -> "Backpermute"
   Stencil{}           -> "Stencil"

@@ -351,6 +351,7 @@ convertSharingAcc config alyt aenv (ScopedAcc lams (AccSharing _ preAcc))
       FoldSeg i tp f e acc1 acc2  -> AST.FoldSeg i (cvtF2 tp tp f) (cvtE <$> e) (cvtA acc1) (cvtA acc2)
       Scan  d tp f e acc          -> AST.Scan  d (cvtF2 tp tp f) (cvtE <$> e) (cvtA acc)
       Scan' d tp f e acc          -> AST.Scan' d (cvtF2 tp tp f) (cvtE e)     (cvtA acc)
+      SegScan i d tp f e acc seg  -> AST.SegScan i d (cvtF2 tp tp f) (cvtE <$> e) (cvtA acc) (cvtA seg)
       Permute (ArrayR shr tp) f dftAcc perm acc
                                   -> AST.Permute (cvtF2 tp tp f) (cvtA dftAcc) (cvtF1 (shapeType shr) perm) (cvtA acc)
       Backpermute shr newDim perm acc
@@ -1547,6 +1548,14 @@ makeOccMapSharingAcc config accOccMap = traverseAcc
                                                      h1 `max` h2 `max` h3 `max` h4 + 1)
             Scan  d tp f e acc          -> travF2MEA (Scan  d tp) tp tp f e acc
             Scan' d tp f e acc          -> travF2EA (Scan' d tp) tp tp f e acc
+            SegScan i d tp f e acc1 acc2
+                                       -> do
+                                             (f'   , h1) <- traverseFun2 lvl tp tp f
+                                             (e'   , h2) <- travME e
+                                             (acc1', h3) <- traverseAcc lvl acc1
+                                             (acc2', h4) <- traverseAcc lvl acc2
+                                             return (SegScan i d tp f' e' acc1' acc2',
+                                                     h1 `max` h2 `max` h3 `max` h4 + 1)
             Permute repr@(ArrayR shr tp) c acc1 p acc2
                                         -> do
                                              (c'   , h1) <- traverseFun2 lvl tp tp c
@@ -2414,6 +2423,15 @@ determineScopesSharingAcc config accOccMap = scopesAcc
                                        (accCount1 +++ accCount2 +++ accCount3 +++ accCount4)
           Scan d tp f z acc       -> travF2MEA (Scan d tp) f z acc
           Scan' d tp f z acc      -> travF2EA (Scan' d tp) f z acc
+          SegScan i d tp f z acc1 acc2
+                                  -> let
+                                       (f'   , accCount1)  = scopesFun2 f
+                                       (z'   , accCount2)  = travME z
+                                       (acc1', accCount3) = scopesAcc acc1
+                                       (acc2', accCount4) = scopesAcc acc2
+                                      in
+                                      reconstruct (SegScan i d tp f' z' acc1' acc2')
+                                        (accCount1 +++ accCount2 +++ accCount3 +++ accCount4)
           Permute repr fc acc1 fp acc2
                                   -> let
                                        (fc'  , accCount1) = scopesFun2 fc

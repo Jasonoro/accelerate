@@ -240,6 +240,8 @@ prettyDelayedOpenAcc detail ctx aenv (Manifest pacc) =
     Scan d f (Just z) a             -> ppD "scan" d ""  .$ [ ppF f,  ppE z, ppA a ]
     Scan d f Nothing  a             -> ppD "scan" d "1" .$ [ ppF f,  ppA a ]
     Scan' d f z a                   -> ppD "scan" d "'" .$ [ ppF f,  ppE z, ppA a ]
+    SegScan _ d f (Just z) a s      -> ppD "segscan" d ""  .$ [ ppF f,  ppE z, ppA a, ppA s ]
+    SegScan _ d f Nothing a s       -> ppD "segscan" d "1" .$ [ ppF f,  ppA a, ppA s ]
     Permute f dfts p xs             -> "permute"        .$ [ ppF f, ppA dfts, ppF p, ppA xs ]
     Backpermute _ sh p xs           -> "backpermute"    .$ [ ppE sh, ppF p, ppA xs ]
     Stencil s _ sten bndy xs        -> "stencil"        .$ [ ppF sten, ppB (stencilEltR s) bndy, ppA xs ]

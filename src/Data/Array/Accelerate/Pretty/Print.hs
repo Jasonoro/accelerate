@@ -212,6 +212,8 @@ prettyPreOpenAcc config ctx prettyAcc extractAcc aenv pacc =
     Scan d f (Just z) a             -> ppD "scan" d ""   .$ [ ppF f,  ppE z, ppA a ]
     Scan d f Nothing  a             -> ppD "scan" d "1"  .$ [ ppF f,  ppA a ]
     Scan' d f z a                   -> ppD "scan" d "'"  .$ [ ppF f,  ppE z, ppA a ]
+    SegScan _ d f (Just z) a s      -> ppD "segscan" d ""  .$ [ ppF f,  ppE z, ppA a, ppA s ]
+    SegScan _ d f Nothing  a s      -> ppD "segscan" d "1" .$ [ ppF f,  ppA a, ppA s ]
     Permute f d p s                 -> ppN "permute"     .$ [ ppF f,  ppA d, ppF p, ppA s ]
     Backpermute _ sh f a            -> ppN "backpermute" .$ [ ppE sh, ppF f, ppA a ]
     Stencil s _ f b a               -> ppN "stencil"     .$ [ ppF f,  ppB (stencilEltR s) b, ppA a ]
