@@ -410,6 +410,14 @@ data PreOpenAcc (acc :: Type -> Type -> Type) aenv a where
               -> acc            aenv (Array (sh, Int) e)        -- array to scan
               -> acc            aenv (Segments i)               -- segment descriptor
               -> PreOpenAcc acc aenv (Array (sh, Int) e)
+  
+  SegScan'    :: IntegralType i
+              -> Direction
+              -> Fun            aenv (e -> e -> e)              -- combination function
+              -> Exp            aenv e                          -- initial value
+              -> acc            aenv (Array (sh, Int) e)        -- array to scan
+              -> acc            aenv (Segments i)               -- segment descriptor
+              -> PreOpenAcc acc aenv (Array (sh, Int) e, Array sh e)
 
   -- Generalised forward permutation is characterised by a permutation function
   -- that determines for each element of the source array where it should go in
@@ -807,6 +815,8 @@ instance HasArraysR acc => HasArraysR (PreOpenAcc acc) where
   arraysR (Scan' _ _ _ a)             = let aR@(ArrayR (ShapeRsnoc sh) tR) = arrayR a
                                          in TupRsingle aR `TupRpair` TupRsingle (ArrayR sh tR)
   arraysR (SegScan _ _ _ _ a _)       = arraysR a
+  arraysR (SegScan' _ _ _ _ a _)      = let aR@(ArrayR (ShapeRsnoc sh) tR) = arrayR a
+                                         in TupRsingle aR `TupRpair` TupRsingle (ArrayR sh tR)
   arraysR (Permute _ a _ _)           = arraysR a
   arraysR (Backpermute sh _ _ a)      = let ArrayR _ tR = arrayR a
                                          in arraysRarray sh tR
@@ -1024,6 +1034,7 @@ rnfPreOpenAcc rnfA pacc =
     Scan d f z a              -> d `seq` rnfF f `seq` rnfMaybe rnfE z `seq` rnfA a
     Scan' d f z a             -> d `seq` rnfF f `seq` rnfE z `seq` rnfA a
     SegScan i d f z a s       -> rnfIntegralType i `seq` d `seq` rnfF f `seq` rnfMaybe rnfE z `seq` rnfA a `seq` rnfA s
+    SegScan' i d f z a s      -> rnfIntegralType i `seq` d `seq` rnfF f `seq` rnfE z `seq` rnfA a `seq` rnfA s
     Permute f d p a           -> rnfF f `seq` rnfA d `seq` rnfF p `seq` rnfA a
     Backpermute shr sh f a    -> rnfShapeR shr `seq` rnfE sh `seq` rnfF f `seq` rnfA a
     Stencil sr tp f b a       ->
@@ -1233,6 +1244,7 @@ liftPreOpenAcc liftA pacc =
     Scan d f z a              -> [|| Scan  $$(liftDirection d) $$(liftF f) $$(liftMaybe liftE z) $$(liftA a) ||]
     Scan' d f z a             -> [|| Scan' $$(liftDirection d) $$(liftF f) $$(liftE z) $$(liftA a) ||]
     SegScan i d f z a s       -> [|| SegScan $$(liftIntegralType i) $$(liftDirection d) $$(liftF f) $$(liftMaybe liftE z) $$(liftA a) $$(liftA s) ||]
+    SegScan' i d f z a s      -> [|| SegScan' $$(liftIntegralType i) $$(liftDirection d) $$(liftF f) $$(liftE z) $$(liftA a) $$(liftA s) ||]
     Permute f d p a           -> [|| Permute $$(liftF f) $$(liftA d) $$(liftF p) $$(liftA a) ||]
     Backpermute shr sh p a    -> [|| Backpermute $$(liftShapeR shr) $$(liftE sh) $$(liftF p) $$(liftA a) ||]
     Stencil sr tp f b a       ->
@@ -1414,33 +1426,34 @@ formatDirection = later $ \case
 
 formatPreAccOp :: Format r (PreOpenAcc acc aenv arrs -> r)
 formatPreAccOp = later $ \case
-  Alet{}            -> "Alet"
-  Avar (Var _ ix)   -> bformat ("Avar a" % int) (idxToInt ix)
-  Use aR a          -> bformat ("Use " % string) (showArrayShort 5 (showsElt (arrayRtype aR)) aR a)
-  Atrace{}          -> "Atrace"
-  Apply{}           -> "Apply"
-  Aforeign{}        -> "Aforeign"
-  Acond{}           -> "Acond"
-  Awhile{}          -> "Awhile"
-  Apair{}           -> "Apair"
-  Anil              -> "Anil"
-  Unit{}            -> "Unit"
-  Generate{}        -> "Generate"
-  Transform{}       -> "Transform"
-  Reshape{}         -> "Reshape"
-  Replicate{}       -> "Replicate"
-  Slice{}           -> "Slice"
-  Map{}             -> "Map"
-  ZipWith{}         -> "ZipWith"
-  Fold _ z _        -> bformat ("Fold" % maybed "1" (fconst mempty)) z
-  FoldSeg _ _ z _ _ -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
-  Scan d _ z _      -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
-  Scan' d _ _ _     -> bformat ("Scan" % formatDirection % "\'") d
-  SegScan _ d _ z _ _ -> bformat ("SegScan" % formatDirection % maybed "1" (fconst mempty)) d z
-  Permute{}         -> "Permute"
-  Backpermute{}     -> "Backpermute"
-  Stencil{}         -> "Stencil"
-  Stencil2{}        -> "Stencil2"
+  Alet{}               -> "Alet"
+  Avar (Var _ ix)      -> bformat ("Avar a" % int) (idxToInt ix)
+  Use aR a             -> bformat ("Use " % string) (showArrayShort 5 (showsElt (arrayRtype aR)) aR a)
+  Atrace{}             -> "Atrace"
+  Apply{}              -> "Apply"
+  Aforeign{}           -> "Aforeign"
+  Acond{}              -> "Acond"
+  Awhile{}             -> "Awhile"
+  Apair{}              -> "Apair"
+  Anil                 -> "Anil"
+  Unit{}               -> "Unit"
+  Generate{}           -> "Generate"
+  Transform{}          -> "Transform"
+  Reshape{}            -> "Reshape"
+  Replicate{}          -> "Replicate"
+  Slice{}              -> "Slice"
+  Map{}                -> "Map"
+  ZipWith{}            -> "ZipWith"
+  Fold _ z _           -> bformat ("Fold" % maybed "1" (fconst mempty)) z
+  FoldSeg _ _ z _ _    -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
+  Scan d _ z _         -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
+  Scan' d _ _ _        -> bformat ("Scan" % formatDirection % "\'") d
+  SegScan _ d _ z _ _  -> bformat ("SegScan" % formatDirection % maybed "1" (fconst mempty)) d z
+  SegScan' _ d _ _ _ _ -> bformat ("SegScan" % formatDirection % "\'") d
+  Permute{}            -> "Permute"
+  Backpermute{}        -> "Backpermute"
+  Stencil{}            -> "Stencil"
+  Stencil2{}           -> "Stencil2"
 
 formatExpOp :: Format r (OpenExp aenv env t -> r)
 formatExpOp = later $ \case

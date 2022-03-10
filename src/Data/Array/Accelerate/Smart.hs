@@ -439,6 +439,15 @@ data PreSmartAcc acc exp as where
                 -> acc (Array (sh, Int) e)
                 -> acc (Segments i)
                 -> PreSmartAcc acc exp (Array (sh, Int) e)
+  
+  SegScan'      :: IntegralType i
+                -> Direction
+                -> TypeR e
+                -> (SmartExp e -> SmartExp e -> exp e)
+                -> exp e
+                -> acc (Array (sh, Int) e)
+                -> acc (Segments i)
+                -> PreSmartAcc acc exp (Array (sh, Int) e, Array sh e)
 
   Permute       :: ArrayR (Array sh e)
                 -> (SmartExp e -> SmartExp e -> exp e)
@@ -836,6 +845,8 @@ instance HasArraysR acc => HasArraysR (PreSmartAcc acc exp) where
     Scan' _ _ _ _ a           -> let repr@(ArrayR (ShapeRsnoc shr) tp) = arrayR a
                                  in  TupRsingle repr `TupRpair` TupRsingle (ArrayR shr tp)
     SegScan _ _ _ _ _ a _     -> arraysR a
+    SegScan' _ _ _ _ _ a _    -> let repr@(ArrayR (ShapeRsnoc shr) tp) = arrayR a
+                                 in  TupRsingle repr `TupRpair` TupRsingle (ArrayR shr tp)
     Permute _ _ a _ _         -> arraysR a
     Backpermute shr _ _ a     -> let ArrayR _ tp = arrayR a
                                  in  TupRsingle (ArrayR shr tp)
@@ -1324,32 +1335,33 @@ formatDirection = later $ \case
 
 formatPreAccOp :: Format r (PreSmartAcc acc exp arrs -> r)
 formatPreAccOp = later $ \case
-  Atag _ i            -> bformat ("Atag " % int) i
-  Use aR a            -> bformat ("Use " % string) (showArrayShort 5 (showsElt (arrayRtype aR)) aR a)
-  Pipe{}              -> "Pipe"
-  Acond{}             -> "Acond"
-  Awhile{}            -> "Awhile"
-  Apair{}             -> "Apair"
-  Anil{}              -> "Anil"
-  Aprj{}              -> "Aprj"
-  Atrace{}            -> "Atrace"
-  Unit{}              -> "Unit"
-  Generate{}          -> "Generate"
-  Reshape{}           -> "Reshape"
-  Replicate{}         -> "Replicate"
-  Slice{}             -> "Slice"
-  Map{}               -> "Map"
-  ZipWith{}           -> "ZipWith"
-  Fold _ _ z _        -> bformat ("Fold" % maybed "1" (fconst mempty)) z
-  FoldSeg _ _ _ z _ _ -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
-  Scan d _ _ z _      -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
-  Scan' d _ _ _ _     -> bformat ("Scan" % formatDirection % "\'") d
+  Atag _ i              -> bformat ("Atag " % int) i
+  Use aR a              -> bformat ("Use " % string) (showArrayShort 5 (showsElt (arrayRtype aR)) aR a)
+  Pipe{}                -> "Pipe"
+  Acond{}               -> "Acond"
+  Awhile{}              -> "Awhile"
+  Apair{}               -> "Apair"
+  Anil{}                -> "Anil"
+  Aprj{}                -> "Aprj"
+  Atrace{}              -> "Atrace"
+  Unit{}                -> "Unit"
+  Generate{}            -> "Generate"
+  Reshape{}             -> "Reshape"
+  Replicate{}           -> "Replicate"
+  Slice{}               -> "Slice"
+  Map{}                 -> "Map"
+  ZipWith{}             -> "ZipWith"
+  Fold _ _ z _          -> bformat ("Fold" % maybed "1" (fconst mempty)) z
+  FoldSeg _ _ _ z _ _   -> bformat ("Fold" % maybed "1" (fconst mempty) % "Seg") z
+  Scan d _ _ z _        -> bformat ("Scan" % formatDirection % maybed "1" (fconst mempty)) d z
+  Scan' d _ _ _ _       -> bformat ("Scan" % formatDirection % "\'") d
   SegScan _ d _ _ z _ _ -> bformat ("SegScan" % formatDirection % maybed "1" (fconst mempty)) d z
-  Permute{}           -> "Permute"
-  Backpermute{}       -> "Backpermute"
-  Stencil{}           -> "Stencil"
-  Stencil2{}          -> "Stencil2"
-  Aforeign{}          -> "Aforeign"
+  SegScan' _ d _ _ _ _ _ -> bformat ("SegScan" % formatDirection % "\'") d
+  Permute{}             -> "Permute"
+  Backpermute{}         -> "Backpermute"
+  Stencil{}             -> "Stencil"
+  Stencil2{}            -> "Stencil2"
+  Aforeign{}            -> "Aforeign"
 
 formatPreExpOp :: Format r (PreSmartExp acc exp t -> r)
 formatPreExpOp = later $ \case

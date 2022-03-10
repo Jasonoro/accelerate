@@ -140,7 +140,6 @@ import Data.Array.Accelerate.Data.Bits
 import Lens.Micro                                                   ( Lens', (&), (^.), (.~), (+~), (-~), lens, over )
 import Prelude                                                      ( (.), ($), Maybe(..), const, id, flip )
 
-
 -- $setup
 -- >>> :seti -XFlexibleContexts
 -- >>> import Data.Array.Accelerate
@@ -973,8 +972,9 @@ postscanr f e = map (`f` e) . scanr1 f
 --     0, 30, 0, 31, 63,  96, 130, 0, 0, 35, 71, 108,
 --     0, 40, 0, 41, 83, 126, 170, 0, 0, 45, 91, 138]
 --
+-- TODO: Change this to use primitive
 scanlSeg
-    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1046,8 +1046,9 @@ scanlSeg f z arr seg =
 --     30, 130, 0, 108,
 --     40, 170, 0, 138]
 --
+-- TODO: Change this to use primitive
 scanl'Seg
-    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1131,22 +1132,19 @@ scanl'Seg f z arr seg =
 --     20, 21, 43,  66,  90, 25, 51,  78,
 --     30, 31, 63,  96, 130, 35, 71, 108,
 --     40, 41, 83, 126, 170, 45, 91, 138]
---
+-- TODO: Change this primitive
 scanl1Seg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Acc (Array (sh:.Int) e)
     -> Acc (Segments i)
     -> Acc (Array (sh:.Int) e)
-scanl1Seg f arr seg
-  = map snd
-  . scanl1 (segmentedL f)
-  $ zip (replicate (lift (indexTail (shape arr) :. All)) (mkHeadFlags seg)) arr
+scanl1Seg f arr seg = segscanl1 f arr (mkHeadFlags seg)
 
 -- |Segmented version of 'prescanl'.
 --
 prescanlSeg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1159,7 +1157,7 @@ prescanlSeg f e vec seg
 -- |Segmented version of 'postscanl'.
 --
 postscanlSeg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1195,7 +1193,7 @@ postscanlSeg f e vec seg
 --     42, 0, 178, 135, 91, 46, 0, 0, 144, 97, 49, 0]
 --
 scanrSeg
-    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1254,7 +1252,7 @@ scanrSeg f z arr seg =
 --     42, 178, 0, 144]
 --
 scanr'Seg
-    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: forall sh e i. (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1310,21 +1308,17 @@ scanr'Seg f z arr seg =
 --     40, 170, 129, 87, 44, 138, 93, 47]
 --
 scanr1Seg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Acc (Array (sh:.Int) e)
     -> Acc (Segments i)
     -> Acc (Array (sh:.Int) e)
-scanr1Seg f arr seg
-  = map snd
-  . scanr1 (segmentedR f)
-  $ zip (replicate (lift (indexTail (shape arr) :. All)) (mkTailFlags seg)) arr
-
+scanr1Seg f arr seg = segscanr1 f arr (mkHeadFlags seg)
 
 -- |Segmented version of 'prescanr'.
 --
 prescanrSeg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)
@@ -1337,7 +1331,7 @@ prescanrSeg f e vec seg
 -- |Segmented version of 'postscanr'.
 --
 postscanrSeg
-    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int)
+    :: (Shape sh, Slice sh, Elt e, Integral i, Bits i, FromIntegral i Int, i ~ EltR i, IsIntegral i)
     => (Exp e -> Exp e -> Exp e)
     -> Exp e
     -> Acc (Array (sh:.Int) e)

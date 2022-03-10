@@ -56,6 +56,9 @@ module Data.Array.Accelerate.Language (
   -- * Scan functions
   scanl, scanl', scanl1, scanr, scanr', scanr1,
 
+  -- * Segmented scan functions
+  segscanl, segscanl', segscanl1, segscanr, segscanr', segscanr1,
+
   -- * Permutations
   permute, backpermute,
 
@@ -118,7 +121,7 @@ import Data.Array.Accelerate.Classes.Integral
 import Data.Array.Accelerate.Classes.Num
 import Data.Array.Accelerate.Classes.Ord
 
-import Prelude                                                      ( ($), (.), Maybe(..), Char )
+import Prelude                                                      ( ($), (.), Maybe(..), Char, error ) -- TODO: Remove error import
 
 
 -- $setup
@@ -688,6 +691,60 @@ scanr1 :: forall sh a.
        -> Acc (Array (sh:.Int) a)
        -> Acc (Array (sh:.Int) a)
 scanr1 f (Acc a) = Acc $ SmartAcc $ Scan RightToLeft (eltR @a) (unExpBinaryFunction f) Nothing a
+
+
+segscanl :: forall sh a i.
+         (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+      => (Exp a -> Exp a -> Exp a)
+      -> Exp a
+      -> Acc (Array (sh:.Int) a)
+      -> Acc (Segments i)
+      -> Acc (Array (sh:.Int) a)
+segscanl f (Exp x) (Acc a) (Acc s) = Acc $ SmartAcc $ SegScan (integralType @i) LeftToRight (eltR @a) (unExpBinaryFunction f) (Just x) a s
+
+segscanl' :: forall sh a i.
+             (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+          => (Exp a -> Exp a -> Exp a)
+          -> Exp a
+          -> Acc (Array (sh:.Int) a)
+          -> Acc (Segments i)
+          -> Acc (Array (sh:.Int) a, Array sh a)
+segscanl' = error "Not yet implemented"
+
+segscanl1 :: forall sh a i.
+             (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+          => (Exp a -> Exp a -> Exp a)
+          -> Acc (Array (sh:.Int) a)
+          -> Acc (Segments i)
+          -> Acc (Array (sh:.Int) a)
+segscanl1 f (Acc a) (Acc s) = Acc $ SmartAcc $ SegScan (integralType @i) LeftToRight (eltR @a) (unExpBinaryFunction f) Nothing a s
+
+
+segscanr :: forall sh a i.
+         (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+      => (Exp a -> Exp a -> Exp a)
+      -> Exp a
+      -> Acc (Array (sh:.Int) a)
+      -> Acc (Segments i)
+      -> Acc (Array (sh:.Int) a)
+segscanr f (Exp x) (Acc a) (Acc s) = Acc $ SmartAcc $ SegScan (integralType @i) RightToLeft (eltR @a) (unExpBinaryFunction f) (Just x) a s
+
+segscanr' :: forall sh a i.
+             (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+          => (Exp a -> Exp a -> Exp a)
+          -> Exp a
+          -> Acc (Array (sh:.Int) a)
+          -> Acc (Segments i)
+          -> Acc (Array (sh:.Int) a, Array sh a)
+segscanr' = error "Not yet implemented"
+
+segscanr1 :: forall sh a i.
+             (Shape sh, Elt a, Elt i, IsIntegral i, i ~ EltR i)
+          => (Exp a -> Exp a -> Exp a)
+          -> Acc (Array (sh:.Int) a)
+          -> Acc (Segments i)
+          -> Acc (Array (sh:.Int) a)
+segscanr1 f (Acc a) (Acc s) = Acc $ SmartAcc $ SegScan (integralType @i) RightToLeft (eltR @a) (unExpBinaryFunction f) Nothing a s
 
 -- Permutations
 -- ------------

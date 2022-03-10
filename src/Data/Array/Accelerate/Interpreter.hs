@@ -253,6 +253,10 @@ evalOpenAcc (AST.Manifest pacc) aenv =
     Scan  d f (Just z) acc        -> dir d scanlOp  scanrOp  (evalF f) (evalE z) (delayed acc)
     Scan  d f Nothing  acc        -> dir d scanl1Op scanr1Op (evalF f)           (delayed acc)
     Scan' d f z acc               -> dir d scanl'Op scanr'Op (evalF f) (evalE z) (delayed acc)
+    SegScan i d f (Just z) acc seg
+                                  -> dir d segscanlOp segscanrOp i (evalF f) (evalE z) (delayed acc) (delayed seg)
+    SegScan i d f Nothing acc seg -> dir d segscanl1Op segscanr1Op i (evalF f)         (delayed acc) (delayed seg)
+    SegScan _ _ _ _ _ _           -> error "TODO evalOpenAcc"
     Permute f def p acc           -> permuteOp (evalF f) (manifest def) (evalF p) (delayed acc)
     Stencil s tp sten b acc       -> stencilOp s tp (evalF sten) (evalB b) (delayed acc)
     Stencil2 s1 s2 tp sten b1 a1 b2 a2
@@ -580,6 +584,136 @@ scanr'Op f z (Delayed (ArrayR shr@(ShapeRsnoc shr') tp) (sh, n) ain _)
 
       iter shr (sh, n+1) write (>>) (return ())
       return ((aout, asum), undefined)
+
+segscanl1Op
+    :: forall sh e i. HasCallStack
+    => IntegralType i
+    -> (e -> e -> e)
+    -> Delayed (Array (sh, Int) e)
+    -> Delayed (Segments i)
+    -> WithReprs (Array (sh, Int) e)
+segscanl1Op itp f (Delayed (ArrayR shr tp) (sh, _) ain _) (Delayed _ ((), segN) _ seg)
+  | IntegralDict <- integralDict itp
+  = boundsCheck "empty segment descriptor" (segN > 0)
+  $ let 
+      -- This cannot be put into a where statement, because the proof that *i* is integral is only valid within the
+      -- guard bounds, not within a where statement
+      newSize = (sh, segN)
+      (adata, _)  = runArrayData @e $ do
+        aout <- newArrayData tp (size shr newSize)
+
+        let write (sz, 0) = writeArrayData tp aout (toIndex shr newSize (sz, 0)) (ain (sz, 0))
+            write (sz, i) = do
+              let segBorder = seg i
+              case (i > segN, fromIntegral segBorder /= 0) of
+                (True, _) -> return ()
+                (_, True) -> writeArrayData tp aout (toIndex shr newSize (sz, i)) (ain (sz, i))
+                _         -> do
+                              x <- readArrayData tp aout (toIndex shr newSize (sz, i-1))
+                              let y = ain (sz, i)
+                              writeArrayData tp aout (toIndex shr newSize (sz, i)) (f x y)
+
+        iter shr newSize write (>>) (return ())
+        return (aout, undefined)
+    in 
+      ( TupRsingle $ ArrayR shr tp
+      , adata `seq` Array newSize adata
+      )
+
+
+segscanlOp
+    :: forall sh e i.
+       IntegralType i 
+    -> (e -> e -> e)
+    -> e
+    -> Delayed (Array (sh, Int) e)
+    -> Delayed (Segments i)
+    -> WithReprs (Array (sh, Int) e)
+segscanlOp itp f z (Delayed (ArrayR shr tp) (sh, n) ain _) (Delayed (ArrayR segShr segTp) segSh@((), segN) segAin seg)
+  | IntegralDict <- integralDict itp
+  = boundsCheck "empty segment descriptor" (segN > 0)
+  $ ( TupRsingle $ ArrayR shr tp
+    , adata `seq` Array sh' adata
+    )
+  where
+    sh'         = (sh, n+1)
+    --
+    
+
+    (adata, _)  = runArrayData @e $ do
+      aout <- newArrayData tp (size shr sh')
+
+
+      let write (sz, 0) = writeArrayData tp aout (toIndex shr sh' (sz, 0)) z
+          write (sz, i) = do
+            x <- readArrayData tp aout (toIndex shr sh' (sz, i-1))
+            let y = ain (sz, i-1)
+            writeArrayData tp aout (toIndex shr sh' (sz, i)) (f x y)
+
+      iter shr sh' write (>>) (return ())
+      return (aout, undefined)
+
+segscanr1Op
+    :: forall sh e i. HasCallStack
+    => IntegralType i
+    -> (e -> e -> e)
+    -> Delayed (Array (sh, Int) e)
+    -> Delayed (Segments i)
+    -> WithReprs (Array (sh, Int) e)
+segscanr1Op itp f (Delayed (ArrayR shr tp) (sh, n) ain _) (Delayed _ ((), segN) _ seg)
+  | IntegralDict <- integralDict itp
+  = boundsCheck "empty segment descriptor" (segN > 0)
+  $ let 
+      -- This cannot be put into a where statement, because the proof that *i* is integral is only valid within the
+      -- guard bounds, not within a where statement
+      newSize = (sh, segN)
+      (adata, _)  = runArrayData @e $ do
+        aout <- newArrayData tp (size shr newSize)
+        let write (sz, 0) = writeArrayData tp aout (toIndex shr newSize (sz, segN-1)) (ain (sz, segN-1))
+            write (sz, i) = do
+              let segBorder = seg (segN-i)
+              case (i > segN, fromIntegral segBorder /= 0) of
+                (True, _) -> return ()
+                (_, True) -> writeArrayData tp aout (toIndex shr newSize (sz, segN-i-1)) (ain (sz, segN-i-1))
+                _         -> do
+                              y <- readArrayData tp aout (toIndex shr newSize (sz, segN-i))
+                              let x = ain (sz, segN-i-1)
+                              writeArrayData tp aout (toIndex shr newSize (sz, segN-i-1)) (f x y)
+
+        iter shr newSize write (>>) (return ())
+        return (aout, undefined)
+  in
+    ( TupRsingle $ ArrayR shr tp
+    , adata `seq` Array newSize adata
+    )
+
+segscanrOp
+    :: forall sh e i.
+       IntegralType i
+    -> (e -> e -> e)
+    -> e
+    -> Delayed (Array (sh, Int) e)
+    -> Delayed (Segments i)
+    -> WithReprs (Array (sh, Int) e)
+segscanrOp itp f z (Delayed (ArrayR shr tp) (sz, n) ain _) (Delayed _ ((), segN) _ seg)
+  | IntegralDict <- integralDict itp
+  = ( TupRsingle (ArrayR shr tp)
+    , adata `seq` Array sh' adata
+    )
+  where
+    sh'         = (sz, n+1)
+    --
+    (adata, _)  = runArrayData @e $ do
+      aout <- newArrayData tp (size shr sh')
+
+      let write (sz, 0) = writeArrayData tp aout (toIndex shr sh' (sz, n)) z
+          write (sz, i) = do
+            let x = ain (sz, n-i)
+            y <- readArrayData tp aout (toIndex shr sh' (sz, n-i+1))
+            writeArrayData tp aout (toIndex shr sh' (sz, n-i)) (f x y)
+
+      iter shr sh' write (>>) (return ())
+      return (aout, undefined)
 
 
 permuteOp
@@ -1414,7 +1548,6 @@ evalMax (NumSingleType (FloatingNumType ty)) | FloatingDict <- floatingDict ty =
 evalMin :: SingleType a -> ((a, a) -> a)
 evalMin (NumSingleType (IntegralNumType ty)) | IntegralDict <- integralDict ty = uncurry min
 evalMin (NumSingleType (FloatingNumType ty)) | FloatingDict <- floatingDict ty = uncurry min
-
 
 {--
 -- Sequence evaluation

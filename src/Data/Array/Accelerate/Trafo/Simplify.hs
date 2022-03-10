@@ -109,6 +109,7 @@ simplifyPreOpenAcc = \case
   Scan d f e a                    -> Scan d (simplifyFun f) (fmap simplifyExp e) (simplifyOpenAcc a)
   Scan' d f e a                   -> Scan' d (simplifyFun f) (simplifyExp e) (simplifyOpenAcc a)
   SegScan iR d f e a s            -> SegScan iR d (simplifyFun f) (fmap simplifyExp e) (simplifyOpenAcc a) (simplifyOpenAcc s)
+  SegScan' iR d f e a s           -> SegScan' iR d (simplifyFun f) (simplifyExp e) (simplifyOpenAcc a) (simplifyOpenAcc s)
   Permute f a1 g a2               -> Permute (simplifyFun f) (simplifyOpenAcc a1) (simplifyFun g) (simplifyOpenAcc a2)
   Backpermute shr sh f a          -> Backpermute shr (simplifyExp sh) (simplifyFun f) (simplifyOpenAcc a)
   Stencil s eR f b a              -> Stencil s eR (simplifyFun f) b (simplifyOpenAcc a)

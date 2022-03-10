@@ -199,6 +199,8 @@ matchPreOpenAcc matchAcc = match
       , Just Refl <- matchExp z1 z2
       , Just Refl <- matchAcc a1 a2
       = Just Refl
+    
+    --TODO SegScan
 
     match (Permute f1 d1 p1 a1) (Permute f2 d2 p2 a2)
       | Just Refl <- matchFun f1 f2
