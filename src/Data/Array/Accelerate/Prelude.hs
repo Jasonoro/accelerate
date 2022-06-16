@@ -1313,7 +1313,7 @@ scanr1Seg
     -> Acc (Array (sh:.Int) e)
     -> Acc (Segments i)
     -> Acc (Array (sh:.Int) e)
-scanr1Seg f arr seg = segscanr1 f arr (mkHeadFlags seg)
+scanr1Seg f arr seg = segscanr1 f arr (mkTailFlags seg)
 
 -- |Segmented version of 'prescanr'.
 --
